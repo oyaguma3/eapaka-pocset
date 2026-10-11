@@ -1,6 +1,6 @@
 # PoC セットの品質改善の計画
 
-- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1〜4 を終えた（記録は §9）。
+- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1〜5 を終えた（記録は §9）。
 - 目的: 4 つのリポジトリ（本PoC、aka-only-server、provisioner、OSS/BSS のサンプル）を 1 組の PoC セットとして提供するため、ソフトウェアの品質と安定性を上げ、組み合わせを確かめたうえで共通のタグを付ける。**アーキテクチャと機能は、なるべく今のままにする。**
 
 ## 1. 対象
@@ -127,6 +127,8 @@
 
 ## 7. 組み合わせの表（タグを付けるときに埋める）
 
+組み合わせの正本は `versions.env`（ステップ 5）。4 つを通した試験（`scripts/e2e.sh`）はそのコミットで行い、`scripts/check-pins.sh` が provisioner と OSS/BSS の CI の固定のコミットとの一致を確かめる。タグを付けるときに、下の表に写す。
+
 | リポジトリ | コミット | 版（Go、API など） |
 |---|---|---|
 | 本PoC | | |
@@ -241,3 +243,38 @@ simwifi での確認（2026-10-12。本PoC `8bc46ae`、aka `f0756ab`、provision
 - `PROVISIONER_DOWNSTREAM_TIMEOUT=11s` では起動せず、10s では起動した。
 - 停止・再開で Reject / Accept が変わった。
 - 副作用（確認事項 10）を見つけた。直した後は、実際の TLS サーバーに healthcheck と同じ接続をしても INFO 以上のログが出ないことを単体テストで確かめた（直す前の作りでは WARN が出てテストが失敗する）。
+
+### 9.5 ステップ 5: 4 つを通した試験の自動化（2026-10-12）
+
+確認事項（2026-10-12 にすべて推奨案で合意）:
+
+| # | 事項 | 決定 |
+|---|---|---|
+| 1 | 組み合わせの表 | `versions.env`（`POC_REF`、`AKA_REF`、`PROVISIONER_REF`、`OSSBSS_REF`、`EAPAKA_TEST_REF` のフルの SHA） |
+| 2 | 起動のしかた | 3 つとも compose でビルドして起動し、`--wait` で healthy まで待つ（利用者と同じ Dockerfile・compose・運用ガイドの手順）。ビルドのキャッシュは使わない |
+| 3 | OSS/BSS | 開発用の設定のバイナリ（ループバック）と PostgreSQL のコンテナ。画面のフォームに curl で送る。Access の検証は単体テストと simwifi |
+| 4 | 試験の中身 | 下の表 |
+| 5 | 置き場所 | `scripts/e2e.sh`（CI と simwifi の両方で動く。ホストに Go は要らない。eapaka_test は golang のコンテナで、OSS/BSS はイメージからバイナリを取り出す） |
+| 6 | 動くきっかけ | push、PR、手動、毎週月曜 9 時台（`.github/workflows/e2e.yml`） |
+| 7 | 失敗したとき | 全コンテナ・OSS/BSS・eapaka_test のログを成果物（`e2e-logs`、30 日）に残す |
+| 8 | 固定のコミットの一致 | 同じワークフローの別のジョブ（`scripts/check-pins.sh`） |
+| 9 | ランナー | `ubuntu-latest`（Ubuntu 26 への移行の後に壊れたら、その時点で決める） |
+
+試験の中身（`scripts/e2e.sh`）:
+
+| # | 確かめること |
+|---|---|
+| 1 | aka-only-server・本PoC・provisioner が healthy、provisioner の `check-downstream` が成功 |
+| 2 | 本PoC の 5 つのアプリの起動ログに `build`（`POC_VERSION`） |
+| 3 | provisioner の API で RADIUSクライアント（`deployments_default` のゲートウェイ）と加入者 2 人（鍵の置き場所 `poc` / `aka`）を登録 |
+| 4 | 2 人 × EAP-AKA / EAP-AKA' の 4 通りで Accept（MPPE の鍵あり） |
+| 5 | 登録していない IMSI、認可ポリシーにない NAS は Reject |
+| 6 | 停止で Reject（`AUTH_SUBSCRIBER_SUSPENDED`）、停止していない加入者は Accept のまま、再開で Accept |
+| 7 | aka-only-server の払い出しの `trace_id` が auth-server のログにもある |
+| 8 | OSS/BSS（開発用の設定）の画面から加入者を登録すると Accept、停止で Reject、再開で Accept。OSS/BSS の監査ログに `subscriber.create`・`policy.suspend`・`policy.resume` |
+| 9 | 本PoC の Valkey を再起動しても Accept |
+
+結果:
+
+- simwifi で 2 回通した。1 回目は、停止のログ（`AUTH_SUBSCRIBER_SUSPENDED`）を本PoC のログのファイル（fluent-bit が書く）で探して失敗した。fluentd のログドライバーと fluent-bit を通るのでファイルに届くのが遅れ、確かめた時点ではまだなかった（Reject 自体は期待どおり）。ログの確認を Docker が手元に残す控え（`docker compose logs`。dual logging）から読み、最大 30 秒待つように直して、2 回目はすべて成功した。片付け済み。
+- GitHub Actions（`8509571`）で、試験（5 分 30 秒）と固定のコミットの一致の確認が成功した。

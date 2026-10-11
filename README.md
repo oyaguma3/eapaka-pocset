@@ -1,5 +1,7 @@
 # eapaka-pocset
 
+[![E2E](https://github.com/oyaguma3/eapaka-pocset/actions/workflows/e2e.yml/badge.svg)](https://github.com/oyaguma3/eapaka-pocset/actions/workflows/e2e.yml)
+
 EAP-AKA の RADIUS 認証の PoC 環境を構成する 4 つのソフトウェアを、組み合わせを確かめた **PoC セット**として提供するためのリポジトリ。各リポジトリに同じ名前のタグ（例 `pocset-v1.0.0`）を付け、その組み合わせと確かめたことを、ここに記録する。
 
 - 状態: 準備中（最初のタグの前）。品質と安定性の改善を進めている（計画書 `docs/plan.md`）。
@@ -21,6 +23,12 @@ EAP-AKA の RADIUS 認証の PoC 環境を構成する 4 つのソフトウェ�
 ```
 
 試験には [eapaka_test](https://github.com/oyaguma3/eapaka_test)（EAP-AKA の試験用のクライアント）を使う。PoC セットには含めず、使ったコミットを記録する。
+
+## 組み合わせと試験
+
+- 組み合わせの正本は [`versions.env`](versions.env)（各リポジトリのコミット）。
+- [`scripts/e2e.sh`](scripts/e2e.sh) が、その組み合わせを 1 台のホストに compose で導入し（各リポジトリの運用ガイドの手順どおり）、eapaka_test で認証の流れ（鍵の置き場所 2 種 × EAP-AKA / EAP-AKA'、拒否、停止・再開、トレースID、OSS/BSS のサンプルからの操作、Valkey の再起動）を確かめる。GitHub Actions（push、PR、毎週月曜）で動くほか、Docker・git・curl・openssl・python3・sudo があれば手元でも動く（`scripts/e2e.sh [作業ディレクトリ]`。待ち受けはすべてループバック）。
+- [`scripts/check-pins.sh`](scripts/check-pins.sh) が、provisioner と OSS/BSS のサンプルの CI が契約テストの相手として固定しているコミットと `versions.env` が一致するかを確かめる。
 
 ## タグ
 
