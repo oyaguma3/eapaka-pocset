@@ -1,6 +1,6 @@
 # PoC セットの品質改善の計画
 
-- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1〜3 を終えた（記録は §9）。
+- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1〜4 を終えた（記録は §9）。
 - 目的: 4 つのリポジトリ（本PoC、aka-only-server、provisioner、OSS/BSS のサンプル）を 1 組の PoC セットとして提供するため、ソフトウェアの品質と安定性を上げ、組み合わせを確かめたうえで共通のタグを付ける。**アーキテクチャと機能は、なるべく今のままにする。**
 
 ## 1. 対象
@@ -66,9 +66,11 @@
 | P-5 | 中 | 版を埋め込むのが provisioning-api だけ。全バイナリに埋め込み、起動のログに出す |
 | P-6 | 中 | CI に gofmt の検査、Docker のビルド、`permissions`・`concurrency` を加える（他の 3 つとそろえる） |
 | P-7 | 中 | 設定の検証の漏れ（vector-gateway の内部のタイムアウトが正か、vector-api の設定）。使っていない定数（`VectorConnectTimeout`） |
-| P-8 | 中 | コンテナが root で動く。nonroot にできるかを確かめる（ログ・ボリュームの権限に影響するので、確かめてから決める） |
+| P-8 | 中 | コンテナが root で動く。**見送り**（ステップ 4 の確認事項 8h。nonroot にすると、証明書の鍵の所有者を変える手順が導入済みの環境すべてに要り、手順書も広く直すことになる。待ち受けは特権のいらないポートだけ） |
 | P-9 | 低 | 文書と実装のずれ: T-01（「CI は将来」、ない `tests/integration` への言及、golangci の古い例）、README（テストの件数、`go test ./...`）、古い r 番号での参照、件数の食い違い |
 | P-10 | 低 | 公開の文書から、git の管理外の `docs/subdocs/`・`docs/testresults/` を 25 か所参照している。参照を直すか、要るものを管理に入れる |
+| P-11 | 中 | vector-gateway・vector-api・provisioning-api の停止の上限（10 秒）が Docker の既定の猶予と同じ（ステップ 4 で追加・対応） |
+| P-12 | 低 | ステップ 4 で残した文書の記述: T-03（1032 行）・T-04（589 行）の「aka-only-server はトレースID を記録しない」、B-03 §6 のサービスごとのビルドに `POC_VERSION` がない、subdoc の UT-AUTH-CONFIG-010 の `VectorConnectTimeout`（ステップ 6 で直す） |
 
 ### 4.3 aka
 
@@ -94,6 +96,7 @@
 | ID | 重さ | 内容 |
 |---|---|---|
 | O-1 | 中 | `postgres:18`、CI の `valkey/valkey:9` をパッチ版まで書く（C-3） |
+| O-2 | 中 | 停止の上限（10 秒）が Docker の既定の猶予と同じ（ステップ 4 で追加・対応） |
 
 各リポジトリの直す前の確認で、項目が増えたら、この表に足す。
 
@@ -200,3 +203,41 @@ simwifi での確認（2026-10-12。本PoC の `feature/go-1.27` `771738b`、aka
 - 本PoC の Valkey を再起動しても、AOF から読み込んでデータが残り（停止の状態も）、4 通りとも Accept。
 - Fluent Bit 4.2.8 を通してホストに 7 つのログファイル。/health のログの振り分け（others.log）も動いた。
 - 片付け済み（作業前と同じ状態。`~/aka-work/ossbss-dev/tunnel-token` は残した）。
+
+### 9.4 ステップ 4: 安定性の修正（2026-10-12）
+
+確認事項（2026-10-12 にすべて推奨案で合意。8h は見送り。10 は simwifi の確認で見つかった副作用への対応で、案 A で合意）:
+
+| # | 事項 | 決定 |
+|---|---|---|
+| 1 | A-1 `X-Trace-ID` | 認証ベクターAPI で受け取り（なければ採番し）、払い出しのログに `trace_id`、応答のヘッダーで返す。管理API と同じ作り（共通の部品 `internal/traceid`）。認証ベクターAPI 0.2.0-draft |
+| 2 | A-2 healthcheck | サブコマンド `healthcheck`（有効なリスナーに TCP で接続できるか。mTLS のため HTTP までは見ない）。compose の healthcheck、CI の通しの確認は `--wait` |
+| 3 | A-3 | `stop_grace_period: 20s` |
+| 4 | V-1 / V-2 | ワーカーは操作 1 件ごとにパニックを回復。停止のときは処理中の操作の終わりを最大 15 秒待つ |
+| 5 | V-3 | `PROVISIONER_DOWNSTREAM_TIMEOUT` が 10 秒を超えたら起動しない |
+| 6 | V-4 / V-5 | healthcheck、`stop_grace_period: 30s`。下流用の証明書の再読み込みの注意は運用ガイドに既にあった |
+| 7 | O-2 | `stop_grace_period: 20s` |
+| 8a〜8g | 本PoC | P-1（`SYS_LISTEN_ERR` で終了コード 1）、P-2（`SYS_PANIC`）、P-3（HTTP の時間の上限）、P-4（`VALKEY_PASSWORD` の必須化、Valkey の healthcheck は `VALKEYCLI_AUTH` と PONG の確認）、P-5（起動ログの `build`、compose の `POC_VERSION`。provisioning-api の `version` は API の版のまま）、P-7（設定の検証、`VectorConnectTimeout` の削除。D-06・D-09 の「接続タイムアウト 2 秒」は実装されていなかったので文書を実装に合わせた）、P-11（`stop_grace_period: 20s`） |
+| 8h | P-8 nonroot | 見送り（§4.2） |
+| 8i | 本PoC の文書 | B-02(r24)、D-01(r24)、D-04(r38)、D-06(r19)、D-08(r28)、D-09(r23)、D-10(r16)、D-11(r14)、D-12(r11)、D-13(r8)、E-01(r10)、O-03(r14)、O-05(r25)、T-02(r25。134 ファイル、864 関数、1,531 ケース)、ドキュメント一覧(r66)、README |
+| 9 | 確かめ方 | 単体テスト（保護を外すと失敗することも確かめた）、各リポジトリの CI、simwifi |
+| 10 | healthcheck のログ | healthcheck の TCP 接続のたびに、サーバーが WARN（`http: TLS handshake error from 127.0.0.1:…: EOF`）を出し、aka-only-server ではメモリのログのバッファ（1,000 件）が約 80 分で埋まる。ループバックからのハンドシェイクの前の切断だけを DEBUG にする（外からの接続は WARN のまま） |
+
+| リポジトリ | コミット | 内容 | CI |
+|---|---|---|---|
+| aka | `f0756ab`、`157ff8a` | A-1〜A-4、確認事項 10 | CI 3 ジョブ（compose で healthy を待つ通しを含む）と govulncheck が成功 |
+| provisioner | `9a3a613`、`7ddd4c8`、`1c52058` | V-1〜V-4、確認事項 10、`POC_REF` を `0d5f53e`・`AKA_REF` を `157ff8a` に | CI 3 ジョブ（契約テストを含む）と govulncheck が成功 |
+| OSS/BSS | `05293f1`、`ba2aa3f` | O-2、固定のコミットの更新（provisioner `1c52058`、本PoC `0d5f53e`、aka `157ff8a`） | CI 3 ジョブ（契約テストを含む）と govulncheck が成功 |
+| 本PoC | develop `6666216`（#57）、main `0d5f53e`（#58） | P-1〜P-5・P-7・P-11、文書 | PR・main とも成功 |
+
+simwifi での確認（2026-10-12。本PoC `8bc46ae`、aka `f0756ab`、provisioner `9a3a613`。片付け済み）:
+
+- healthcheck のあるコンテナはすべて healthy。停止の猶予（StopTimeout）は aka-only-server 20、provisioner 30、vector-gateway・vector-api・provisioning-api 20。
+- 5 つのアプリの起動ログに `"build":"8bc46ae"`（provisioning-api は `"version":"0.4.0"` と別）。
+- 鍵の置き場所の違う加入者 2 人が EAP-AKA / EAP-AKA' で Accept。1 回の認証の `trace_id` が auth-server・vector-gateway・aka-only-server の 3 か所で一致した。
+- auth-server の `LISTEN_ADDR` を bind できないアドレスにすると `SYS_LISTEN_ERR` を出して終了コード 1 で終わり、再起動を繰り返した（RestartCount が増える）。戻すと healthy。
+- `VALKEY_PASSWORD` が空（または行がない）と `docker compose config` が断る。
+- `docker compose stop` は 3 つとも 1〜2 秒で、強制終了（137）にならない。provisioner のログに `worker stopped`。
+- `PROVISIONER_DOWNSTREAM_TIMEOUT=11s` では起動せず、10s では起動した。
+- 停止・再開で Reject / Accept が変わった。
+- 副作用（確認事項 10）を見つけた。直した後は、実際の TLS サーバーに healthcheck と同じ接続をしても INFO 以上のログが出ないことを単体テストで確かめた（直す前の作りでは WARN が出てテストが失敗する）。
