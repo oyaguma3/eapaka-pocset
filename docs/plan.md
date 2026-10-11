@@ -1,6 +1,6 @@
 # PoC セットの品質改善の計画
 
-- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1・2 を終えた（記録は §9）。
+- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1〜3 を終えた（記録は §9）。
 - 目的: 4 つのリポジトリ（本PoC、aka-only-server、provisioner、OSS/BSS のサンプル）を 1 組の PoC セットとして提供するため、ソフトウェアの品質と安定性を上げ、組み合わせを確かめたうえで共通のタグを付ける。**アーキテクチャと機能は、なるべく今のままにする。**
 
 ## 1. 対象
@@ -168,3 +168,35 @@ README と、この計画書を置いた（`332ec36`）。
 
 - 3 つとも、手元の govulncheck（Go 1.27.2）で指摘なし。govulncheck は使っている Go の版で標準ライブラリを判定するので、Go 1.27.1 のままなら 1.27.2 で直った脆弱性が指摘される見込み（1.27.1 では試していない）。
 - GitHub Actions の `ubuntu-latest` は 2026-10-19 から Ubuntu 26 に移る予告が出ている（provisioner の CI の注記）。CI が落ちたら、まずそれを疑う。
+
+### 9.3 ステップ 3: 本PoC の Go と CI（2026-10-12）
+
+確認事項（2026-10-12 にすべて推奨案で合意）:
+
+| # | 事項 | 決定 |
+|---|---|---|
+| 1 | Go と依存 | `go.work` と 7 つの go.mod を Go 1.27.2 に。依存は govulncheck の指摘のものだけ上げる: `golang.org/x/net` v0.46.0 → v0.60.0（GO-2026-6617・6612・6611・6603）、`github.com/quic-go/quic-go` v0.54.0 → v0.59.1（GO-2026-5676、GO-2025-4233）。どちらも gin v1.11.0 から使われる間接依存（gin v1.12.0 でも修正版に届かないので、gin は据え置き）。推移で x/crypto・x/sys・x/text・x/tools なども上がった |
+| 2 | イメージ | `golang:1.27.2-bookworm`、`debian:12.15-slim`、`fluent/fluent-bit:4.2.8`、Valkey は他の 3 つとそろえて `9.0` → `9.1.2` |
+| 3 | CI | `actions/checkout`・`setup-go` を v7 に、`golangci-lint-action` v9.3.0 を SHA（`ba0d7d2`）で固定、golangci-lint v2.10 → v2.14.0、gofmt の確認、`permissions`・`concurrency`、イメージ 5 つのビルドと compose の設定のジョブ（P-6） |
+| 4 | govulncheck | 他の 3 つと同じワークフロー（main・develop への push、PR、手動、毎週月曜）。go.work の直下では動かないので、`make vulncheck` でモジュールごとに実行する |
+| 5 | 文書の改版 | 版を書いている文書を改版: B-03(r3)、D-01(r23)、D-02(r26)、D-08(r27)、D-09(r22)、D-10(r15)、D-11(r13)、D-12(r10)、E-01(r9)、E-03(r16)、ドキュメント一覧(r65)、README、CLAUDE.md。T-01 の古い CI の節と、文書どうしの参照の古い版数はステップ 6（P-9）で直す |
+| 6 | ブランチと PR | `feature/go-1.27` → develop（#55、squash）→ main（#56、merge commit） |
+| 7 | 確かめ方 | 手元、PR と main の CI、simwifi での動作確認 |
+| 8 | 他のリポジトリ | provisioner の `POC_REF`、OSS/BSS の `POC_REF`・`PROVISIONER_REF` を更新 |
+
+| リポジトリ | コミット | 内容 | CI |
+|---|---|---|---|
+| 本PoC | develop `829cf29`（#55）、main `061d7d0`（#56） | 上の 1〜5 | PR・main とも、ビルドとテスト（golangci-lint を含む）、イメージと compose の設定、govulncheck が成功 |
+| provisioner | `be26ecb` | `POC_REF` を本PoC `061d7d0` に | CI 3 ジョブ（本PoC `061d7d0`・aka `b003b11` との契約テストを含む）と govulncheck が成功 |
+| OSS/BSS | `4a70c40` | `PROVISIONER_REF` を `be26ecb`、`POC_REF` を `061d7d0` に | CI 3 ジョブ（契約テストを含む）と govulncheck が成功 |
+
+手元での確認: Go 1.27.2 で `make build`・`vet`・`test-race`・`lint`（0 issues）、gofmt、`make vulncheck`（7 モジュールとも指摘なし。x/crypto の openpgp の 1 件は呼んでいないので対象外）、イメージ 5 つのビルド（中のバイナリは go1.27.2、Debian 12.15）、compose の設定。
+
+simwifi での確認（2026-10-12。本PoC の `feature/go-1.27` `771738b`、aka `b003b11`、provisioner `51c9eee` を同一ホストに compose で導入。待ち受けはループバック）:
+
+- 本PoC の 7 つのコンテナが起動（fluent-bit 以外は healthy）。Valkey 9.1.2、Fluent Bit 4.2.8、アプリのコンテナは Debian 12.15・go1.27.2。起動ログにエラーなし。provisioner の `check-downstream` で下流 2 つと AVクライアントに接続できた。
+- provisioner の API で RADIUSクライアントと加入者 2 人（`440200000000001` は本PoC、`440100000000001` は aka-only-server に鍵）を登録し、eapaka_test で 2 人 × EAP-AKA / EAP-AKA' の 4 通りとも Access-Accept。
+- 停止（`PUT /policies/{imsi}/status`）で Reject（auth-server に `AUTH_SUBSCRIBER_SUSPENDED`）、再開で Accept（2 人とも）。provisioner の監査ログに `policy.suspend` / `policy.resume`。
+- 本PoC の Valkey を再起動しても、AOF から読み込んでデータが残り（停止の状態も）、4 通りとも Accept。
+- Fluent Bit 4.2.8 を通してホストに 7 つのログファイル。/health のログの振り分け（others.log）も動いた。
+- 片付け済み（作業前と同じ状態。`~/aka-work/ossbss-dev/tunnel-token` は残した）。
