@@ -1,6 +1,6 @@
 # PoC セットの品質改善の計画
 
-- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1（このリポジトリの土台）を終えた。
+- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1・2 を終えた（記録は §9）。
 - 目的: 4 つのリポジトリ（本PoC、aka-only-server、provisioner、OSS/BSS のサンプル）を 1 組の PoC セットとして提供するため、ソフトウェアの品質と安定性を上げ、組み合わせを確かめたうえで共通のタグを付ける。**アーキテクチャと機能は、なるべく今のままにする。**
 
 ## 1. 対象
@@ -37,7 +37,7 @@
 | 4 | リリースの基準 | §6 |
 | 5 | 本PoC の Go | 上げる（§3 の 9 の版） |
 | 6 | 直してよい範囲 | 不具合の修正、堅牢化、CI、文書だけ。API と機能は変えない。ただし aka の認証ベクター API の `X-Trace-ID` の対応は入れる（本PoC の vector-gateway は送っている。1 回の認証を 4 つのログでたどれるようにする） |
-| 7 | 版の固定 | イメージ（Dockerfile、compose、CI のサービスコンテナ）はパッチ版まで書く（ダイジェストは使わない）。Actions は GitHub のもの（`actions/*`）はメジャー版のタグ、第三者のもの（golangci-lint-action）はコミットの SHA で固定して版をコメントに書く。Dependabot の更新の PR は使わない（依存はセットのリリースのときにまとめて上げる）。脆弱性は govulncheck で、push のときと週 1 回調べる |
+| 7 | 版の固定 | イメージ（Dockerfile、compose、CI のサービスコンテナ）はパッチ版まで書く（ダイジェストは使わない）。Actions は GitHub のもの（`actions/*`）はメジャー版のタグ、第三者のもの（golangci-lint-action）はコミットの SHA で固定して版をコメントに書く。Dependabot の更新の PR は使わない（依存はセットのリリースのときにまとめて上げる）。脆弱性は govulncheck で、push のときと週 1 回調べる。例外: distroless（`gcr.io/distroless/static-debian13:nonroot`）は版のタグがないのでタグのまま（中身は CA 証明書などの最小限のファイルで、作り直しは修正の取り込み。ステップ 2 の確認事項 5） |
 | 8 | イメージの公開 | しない（利用者はタグからソースでビルドする） |
 | 9 | Go の版 | 4 つとも Go 1.27.2（2026-10-08 公開。`go` コマンド、`crypto/tls`、`html/template`、`net/http`、`net/textproto`、`os` のセキュリティ修正を含む）。go.mod の `go` の行、Dockerfile の `golang` のイメージ、CI を同じ版にそろえる。セットのリリースの直前に、その時点の最新のパッチ版を確かめる |
 
@@ -138,3 +138,33 @@
 2. 4 つのリポジトリの、表のコミットに注釈つきタグを付けて push する（`git tag -a pocset-vX.Y.Z <コミット> -m "PoC セット vX.Y.Z"`、`git push origin pocset-vX.Y.Z`）。
 3. このリポジトリの、表を記録したコミットに同じタグを付け、GitHub のリリース（リリースノート）を作る。
 4. 公開したタグは付け替えない。直すことがあれば、パッチ版を上げた新しいタグにする。
+
+## 9. 記録
+
+### 9.1 ステップ 1: このリポジトリの土台（2026-10-11）
+
+README と、この計画書を置いた（`332ec36`）。
+
+### 9.2 ステップ 2: aka・provisioner・OSS/BSS の Go と CI（2026-10-12）
+
+確認事項（2026-10-12 にすべて推奨案で合意）:
+
+| # | 事項 | 決定 |
+|---|---|---|
+| 1 | govulncheck の入れ方 | `go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...`（Action は使わない。版は固定され、中身は Go のチェックサムのデータベースで照合される） |
+| 2 | 実行の場所と頻度 | CI とは別のワークフロー `.github/workflows/govulncheck.yml`。push、pull request、手動、毎週月曜 9 時台（日本時間。cron `23 0 * * 1`） |
+| 3 | Valkey の版 | 3 つとも `9.1.2`（それまでの `:9` が指していた版）。本PoC（`9.0`）はステップ 3 で決める |
+| 4 | PostgreSQL の版 | `18.6` |
+| 5 | distroless | 例外としてタグのまま（§3 の 7） |
+| 6 | OSS/BSS の govulncheck の指摘 | `golang.org/x/text` v0.29.0 の GO-2026-6629・GO-2026-5970（pgx から使われる）。x/text を v0.43.0 に上げた（x/sync も v0.24.0 に上がった）。pgx は v5.11.0 が最新 |
+| 7 | 固定のコミットの更新 | aka → provisioner → OSS/BSS の順にコミットし、provisioner の `AKA_REF`、OSS/BSS の `AKA_REF`・`PROVISIONER_REF` を更新した |
+| 8 | 確かめ方 | 手元（gofmt・vet・`go test -race`（固定したパッチ版のイメージでの結合テスト、スキップなし）・govulncheck・イメージのビルド・compose の設定）と各リポジトリの CI |
+
+| リポジトリ | コミット | 内容 | CI |
+|---|---|---|---|
+| aka | `b003b11` | Go 1.27.2、Valkey 9.1.2（compose・CI・README・運用ガイド）、govulncheck、`AKA_VERSION` を `.env.example`・README・運用ガイドに（A-4）、CI の結合テストの確認に `pipefail`（A-4） | CI 3 ジョブ（compose での起動から認証ベクターの取得までの通しを含む）と govulncheck が成功 |
+| provisioner | `51c9eee` | Go 1.27.2、Valkey 9.1.2、govulncheck、README の「Go 1.27 以上」を 1.27.2 に（V-5 の一部）、`AKA_REF` を `b003b11` に | CI 3 ジョブ（aka `b003b11`・本PoC `dbd97f5` との契約テストを含む）と govulncheck が成功 |
+| OSS/BSS | `cb09b64` | Go 1.27.2、x/text v0.43.0、postgres 18.6、CI の Valkey 9.1.2、govulncheck、`PROVISIONER_REF` を `51c9eee`・`AKA_REF` を `b003b11` に（O-1） | CI 3 ジョブ（provisioner `51c9eee`・本PoC `dbd97f5`・aka `b003b11` との契約テストを含む）と govulncheck が成功 |
+
+- 3 つとも、手元の govulncheck（Go 1.27.2）で指摘なし。govulncheck は使っている Go の版で標準ライブラリを判定するので、Go 1.27.1 のままなら 1.27.2 で直った脆弱性が指摘される見込み（1.27.1 では試していない）。
+- GitHub Actions の `ubuntu-latest` は 2026-10-19 から Ubuntu 26 に移る予告が出ている（provisioner の CI の注記）。CI が落ちたら、まずそれを疑う。
