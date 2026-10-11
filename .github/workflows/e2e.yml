@@ -1,0 +1,44 @@
+# PoC セットの 4 つを versions.env のコミットで 1 台に導入し、eapaka_test で認証の流れを確かめる（scripts/e2e.sh）。
+# あわせて、provisioner と OSS/BSS のサンプルの CI が固定しているコミットが versions.env と一致するかを確かめる。
+name: E2E
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # 毎週月曜 9 時台（日本時間）。ベースイメージの作り直しなど、コードを変えなくても壊れることがあるため。
+    - cron: "41 0 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: 4 つを通した試験
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: 試験
+        run: bash scripts/e2e.sh "$RUNNER_TEMP/e2e-work"
+      - name: ログ（失敗時）
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs
+          path: ${{ runner.temp }}/e2e-work/logs
+          retention-days: 30
+
+  pins:
+    name: 固定のコミットの一致
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: provisioner と OSS/BSS のサンプルの CI の固定のコミット
+        run: bash scripts/check-pins.sh

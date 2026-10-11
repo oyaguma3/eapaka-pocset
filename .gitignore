@@ -3,3 +3,6 @@ CLAUDE.md
 
 # ローカルのパスを含むので共有しない
 .claude/settings.json
+
+# 4 つを通した試験の作業ディレクトリ（scripts/e2e.sh）
+e2e-work/
