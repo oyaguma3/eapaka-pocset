@@ -33,7 +33,7 @@ EAP-AKA の RADIUS 認証の PoC 環境を構成する 4 つのソフトウェ�
 | 1 | provisioner | イメージをビルドし、下流に提示するクライアント証明書を作る（`gen-client-cert`） | [eapaka-node-provisioner の運用ガイド](https://github.com/oyaguma3/eapaka-node-provisioner/blob/main/docs/operation-guide.md) 2.1・2.2 |
 | 2 | aka-only-server | provisioner を管理クライアントに登録して起動する。本PoC の vector-gateway の AVクライアントを登録し、AV用・管理API 用のサーバー証明書を取り出す | [aka-only-server の運用ガイド](https://github.com/oyaguma3/aka-only-server/blob/main/docs/operation-guide.md) 3・4 章、provisioner の運用ガイド 2.3 |
 | 3 | 本PoC | aka-only-server への接続（PLMN マップ、AVクライアントの証明書）と Provisioning API（サーバー証明書、provisioner の登録）を設定し、`--profile provisioning` で起動する | [本PoC の docs](https://github.com/oyaguma3/eapaka-radius-server-poc/tree/main/docs) の B-02 アプリケーションデプロイ手順書 §14・§15、provisioner の運用ガイド 2.4 |
-| 4 | provisioner | 下流のサーバー証明書を置き、管理クライアント・PLMN マップ・AVクライアントID を設定して起動する。`check-downstream` で確かめる | provisioner の運用ガイド 2.5〜2.8 |
+| 4 | provisioner | 下流のサーバー証明書を置き、管理クライアント・PLMN マップ・AVクライアントID を設定して起動する。`check-downstream` で確かめる。管理クライアント（`PROVISIONER_ADMIN_CLIENTS`）が 1 つもないと起動しないので、先に OSS/BSS のサンプルの取得とクライアント証明書の作成（その運用ガイド 2.3、2.5 の前半）を済ませる | provisioner の運用ガイド 2.5〜2.8 |
 | 5 | OSS/BSS のサンプル | Cloudflare Access / Tunnel を準備し、provisioner と証明書をやり取りして起動する | [eapaka-ossbss-sample の運用ガイド](https://github.com/oyaguma3/eapaka-ossbss-sample/blob/main/docs/operation-guide.md) 2 章 |
 
 ノードの間でそろえる値:

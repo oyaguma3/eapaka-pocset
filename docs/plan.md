@@ -312,3 +312,43 @@ GitHub のアカウントの制限による中断:
 - 本PoC の README とドキュメント一覧の T-04「計 11 シナリオ」（E2E-301〜316 もある）。
 - T-01 §3.6・§5 は実装と照合していない。
 - 迷って残した版つきの参照（D-09「D-03 r3準拠の状態遷移図」、O-05「（D-13 r6）」、T-02 §5.x の「rN で追加したケース」の記録など）。
+
+### 9.7 ステップ 7: 最終の確認とタグ（2026-10-16〜）
+
+確認事項（2026-10-16 にすべて推奨案で合意。9 はユーザーの判断で記録だけ）:
+
+| # | 事項 | 決定 |
+|---|---|---|
+| 1 | タグの名前 | `pocset-v1.0.0`（本PoC の既存の `v0.1.0` とは別の系列。直すときは `pocset-v1.0.1`） |
+| 2 | ステップ 6 で残した文書 | T-04 の件数の書き方を直し、T-01 §3.6・§5 を実装と照合して直す。版つきの参照（D-09・O-05・T-02 の経緯の記録）は残す |
+| 3 | 進める順 | 文書の修正と組み合わせの更新 → simwifi → 基準の確認 → タグ（simwifi でタグを付けるコミットそのものを確かめる） |
+| 4 | simwifi の範囲 | `scripts/e2e.sh`、本PoC の T-03 の必須 23 件、Cloudflare を通した OSS/BSS の画面（ユーザーのブラウザ） |
+| 5 | ランナーの移行 | `ubuntu-latest` が 2026-10-19 から Ubuntu 26 に移るので、その日の定期の実行（govulncheck、E2E）を見てからタグを付ける |
+| 6 | タグとリリース | 4 つのリポジトリの `versions.env` のコミットと、このリポジトリの組み合わせの表（§7）を記録したコミットに注釈つきタグ。GitHub のリリースはこのリポジトリだけ（本文は CHANGELOG）。本PoC は main のコミット |
+| 7 | （欠番） | — |
+| 8 | 照合の範囲（2 の作業中に追加） | T-01 の全体と T-02 の §1.4・§2・§3 も照合して直す（同じ種類の食い違いが見つかったため）。T-02 のテストケースの表と件数は変えない |
+| 9 | T-03 の実行で見つかった文書の差 | 直さずに記録だけ（下記）。直せる機会があればユーザーに判断を仰ぐ |
+
+文書の修正と組み合わせの更新:
+
+| リポジトリ | コミット | 内容 | CI |
+|---|---|---|---|
+| 本PoC | develop `84218db`（#61）、main `baa13f3`（#62） | T-01(r6)・T-02(r27)・T-04(r10)・ドキュメント一覧(r68)・README。文書だけ | PR・main とも CI と govulncheck が成功 |
+| provisioner | `a6435ae` | `POC_REF` を `baa13f3` に | CI（契約テストを含む）と govulncheck が成功 |
+| OSS/BSS | `b5689c1` | `PROVISIONER_REF` を `a6435ae`・`POC_REF` を `baa13f3` に | CI（契約テストを含む）と govulncheck が成功 |
+| aka | `c17c24b`（変更なし） | — | — |
+
+T-01 の照合で直したもの: パッケージ別のテスト内容（存在しない `handler`・`model` をやめ、`engine`・`eap/akaprime`・`acct`・`dto`・`audit`・`csv`・`format` を追加）、モック戦略（インターフェースの名前と場所、go:generate は Vector API だけで Auth Server・Acct Server は `internal/mocks` に mockgen を直接実行、使用例を実際のテストの抜粋に、testify は使っていない、miniredis の範囲）、テスト用の IMSI の例（17 桁 → 15 桁）とテスト用の RADIUSクライアント、mockgen の版（`@v0.6.0`）。T-02: Go 1.25.x → 1.27.2、ライブラリの版、testify を外す、モックの置き場所、Fake の範囲、§1.4 の HANDLER から AUTH を外す。
+
+simwifi での確認（2026-10-16。組み合わせは本PoC `baa13f3`・aka `c17c24b`・provisioner `a6435ae`・OSS/BSS `b5689c1`・eapaka_test `b3f8f25`。3 つとも終わった後に片付けた。`~/aka-work/ossbss-dev/tunnel-token` だけが残る）:
+
+1. `scripts/e2e.sh`: すべて成功（§9.5 の試験の中身 1〜9）。
+2. 本PoC の T-03 の必須 23 件（G1 5・G2 7・G3 3・G6 8。テストベクターモード、本PoC だけを compose で起動、radclient は `freeradius/freeradius-server:3.2.10-alpine` のコンテナで動かした）: 23 件すべて PASS。SQN 再同期は sqn_old=ff9bb4d0b5a7・sqn_ms=ff9bb4d0b607・sqn_new=ff9bb4d0b627 で文書どおり、trace_id は auth-server・vector-gateway・vector-api で一致。
+3. Cloudflare を通した OSS/BSS: 4 つを各運用ガイドの手順で導入し（OSS/BSS は compose の cloudflared と Access。待ち受けはすべてループバック）、ユーザーがブラウザ（ワンタイム PIN）で加入者 2 人（鍵の置き場所 本PoC / aka-only-server）を登録し、B に認可ポリシーのルールを加えた。eapaka_test で Accept → 画面で停止して Reject（`AUTH_SUBSCRIBER_SUSPENDED`）→ 再開して Accept。aka-only-server 行きの加入者だけ vector-gateway の `BACKEND_EXTERNAL_CALL` が増えた。監査ログの画面に 7 件（`subscriber.create` 2、`policy.put` 1、`policy.suspend` 2、`policy.resume` 2）。接続元の表示は Cloudflare の `Cf-Connecting-IP`（利用者の回線の IPv6 アドレス。PoC セットでは問題にしない）。
+
+記録だけにしたもの（確認事項 9 など）:
+
+- T-03 の INT-VALKEY-001: T-03 §5.1・付録A は加入者 6 件だが、非公開の投入スクリプトは 9 件を登録する。非公開の検証スクリプトは「加入者のないポリシー」（`policy:001010000000004`・`005`。T-03 §3.1 で加入者を登録しない前提）を FAIL と数えるので、文書どおりに投入すると必ず「NG」になる（T-03 の PASS 条件の形式と型は満たす）。
+- T-03 §5.2: G1 の直後に G2 を流すと、INT-VALKEY-002 の「`eap:*` が空」は G1 の文脈の TTL（60 秒）が切れるまで成り立たない（手順に待ちの記述がない）。
+- 本PoC の B-02 §15.8 の注記「`COMPOSE_PROFILES=provisioning` は simwifi の実機で確かめていない」は古い（provisioner の運用ガイドに 2026-10-10 の確認の記録があり、今回も動いた）。
+- このリポジトリの README「1 台に導入する」の順 4: provisioner は `PROVISIONER_ADMIN_CLIENTS` が空だと起動しないので、OSS/BSS のサンプルのクライアント証明書の作成を先に行う必要があった → README に書き足した（このコミット）。
