@@ -2,6 +2,31 @@
 
 PoC セットのタグごとに、各リポジトリで変わったことを書く。組み合わせ（各リポジトリのコミット）は、そのタグの `versions.env` にある。計画と経緯は `docs/plan.md`。
 
+## pocset-v1.0.1（未リリース）
+
+Go の `crypto/x509` のセキュリティ修正を取り込むための版。4 つのソフトウェアの API と機能は変えていない。
+
+### 4 つに共通
+
+- Go を 1.27.3 に上げた（go.mod、Dockerfile、CI）。Go 1.27.3 は `crypto/x509` の CVE-2026-111943（[GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809)）を直す。認証局 eMudhra の中間 CA 8 件の秘密鍵が推測できる弱い鍵だったため、これらを含む証明書チェーンを `Certificate.Verify` で拒む。Go 1.27.2 のままだと govulncheck が指摘する。
+- PoC セットの mTLS は、すべて自前の証明書と自前のルートで行うので、この件による実害はない。OS のルートを使うのは OSS/BSS のサンプルが Cloudflare Access の公開鍵を取りに行く通信だけで、Cloudflare は eMudhra の証明書を使っていない。
+
+### PoC セット（eapaka-pocset）
+
+- `versions.env` を 4 つの新しいコミットに更新した。`scripts/e2e.sh` が eapaka_test をビルドするイメージを `golang:1.27.3` にした。
+
+### 本PoC（eapaka-radius-server-poc）
+
+- 文書: Go の版を書いた文書を改版した（ドキュメント一覧 r69）。
+
+### eapaka-ossbss-sample
+
+- cloudflared を 2026.9.3 から 2026.10.3 にした（2026.9.3 は Go 1.26.8 でビルドされていて GO-2026-6809 の対象。2026.10.3 は Go 1.27.3）。
+
+### 導入済みの環境の更新
+
+- 4 つとも、新しいタグを取得してイメージをビルドし直す。ベースイメージとビルドのキャッシュの古い層が残らないように、`docker compose build --pull --no-cache` を使う。今のベースイメージ（本PoC の `debian:12.15-slim` に入れる ca-certificates 20250419~deb12u2、`distroless/static-debian13`）は、信頼を取り消された emSign ECC Root CA - G3 を含まない。
+
 ## pocset-v1.0.0（2026-10-19）
 
 PoC セットとしての最初の版。4 つのソフトウェアの機能はそのままに、品質と安定性を上げ、組み合わせを確かめた（`docs/plan.md` のステップ 1〜7）。

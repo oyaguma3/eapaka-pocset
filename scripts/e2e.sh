@@ -216,7 +216,7 @@ fetch eapaka_test "$EAPAKA_TEST_REF" "$EAPAKA_TEST"
 step "試験の道具のビルド（eapaka_test、OSS/BSS のサンプル）"
 # ホストに Go がなくても動くよう、コンテナでビルドする。
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false \
-	-v "$EAPAKA_TEST:/src" -w /src golang:1.27.2 go build -o /src/eapaka_test.bin ./cmd/eapaka_test
+	-v "$EAPAKA_TEST:/src" -w /src golang:1.27.3 go build -o /src/eapaka_test.bin ./cmd/eapaka_test
 mv "$EAPAKA_TEST/eapaka_test.bin" "$BIN/eapaka_test"
 docker build -q -t pocset-e2e-ossbss --build-arg VERSION="$(short "$OSSBSS_REF")" "$OSSBSS" >/dev/null
 cid=$(docker create pocset-e2e-ossbss)
