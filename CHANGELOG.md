@@ -2,7 +2,7 @@
 
 PoC セットのタグごとに、各リポジトリで変わったことを書く。組み合わせ（各リポジトリのコミット）は、そのタグの `versions.env` にある。計画と経緯は `docs/plan.md`。
 
-## pocset-v1.0.1（未リリース）
+## pocset-v1.0.1（2026-10-24）
 
 Go の `crypto/x509` のセキュリティ修正を取り込むための版。4 つのソフトウェアの API と機能は変えていない。
 
@@ -14,6 +14,7 @@ Go の `crypto/x509` のセキュリティ修正を取り込むための版。4 
 ### PoC セット（eapaka-pocset）
 
 - `versions.env` を 4 つの新しいコミットに更新した。`scripts/e2e.sh` が eapaka_test をビルドするイメージを `golang:1.27.3` にした。
+- README の「状態」の行を直した（最初のタグの前のままだった）。
 
 ### 本PoC（eapaka-radius-server-poc）
 

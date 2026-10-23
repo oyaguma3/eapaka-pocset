@@ -1,6 +1,6 @@
 # PoC セットの品質改善の計画
 
-- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1〜5 を終えた（記録は §9）。
+- 状態: 初版（2026-10-11）。決定事項（§3）はすべて合意済み。ステップ 1〜7 を終え、`pocset-v1.0.0`（2026-10-19）と `pocset-v1.0.1`（2026-10-24。Go 1.27.3）をリリースした（記録は §9）。
 - 目的: 4 つのリポジトリ（本PoC、aka-only-server、provisioner、OSS/BSS のサンプル）を 1 組の PoC セットとして提供するため、ソフトウェアの品質と安定性を上げ、組み合わせを確かめたうえで共通のタグを付ける。**アーキテクチャと機能は、なるべく今のままにする。**
 
 ## 1. 対象
@@ -125,7 +125,7 @@
 - [x] simwifi での通しの確認が済んでいる（ステップ 7）。
 - [x] 文書（README、運用ガイド、設計書）と実装に食い違いがない。リリースノートを書いた。
 
-pocset-v1.0.0 では 2026-10-19 にすべてを確かめた（§9.7）。
+pocset-v1.0.0 では 2026-10-19 にすべてを確かめた（§9.7）。pocset-v1.0.1 では 2026-10-24 にすべてを確かめた（§9.8。simwifi での通しは、変わったものがツールチェーンとイメージの版だけなので `scripts/e2e.sh` に限った）。
 
 ## 7. 組み合わせの表（タグを付けるときに埋める）
 
@@ -133,11 +133,13 @@ pocset-v1.0.0 では 2026-10-19 にすべてを確かめた（§9.7）。
 
 | リポジトリ | コミット | 版（Go、API など） |
 |---|---|---|
-| 本PoC | `baa13f3646d5ca7803a31c1908d13d6553326cf9`（main） | Go 1.27.2、Provisioning API 0.4.0、ドキュメント一覧 r68 |
-| aka | `c17c24b203d4730bdfe6b6b4eee79e4cf880a317` | Go 1.27.2、認証ベクターAPI 0.2.0-draft、管理API 0.2.0 |
-| provisioner | `a6435ae0db7addaa5e2eeadb6420dc88fa887d9e` | Go 1.27.2、provisioner API 0.3.0 |
-| OSS/BSS | `b5689c1c390b011a864212754b7fae544d437d17` | Go 1.27.2、PostgreSQL 18.6 |
-| eapaka_test（試験用。タグは付けない） | `b3f8f25ce892151372e348a13d49ab6a13ae83a6` | `golang:1.27.2` のコンテナでビルド |
+| 本PoC | `1f8aad11c9dcaee783689fd9c78e4f419fee672f`（main） | Go 1.27.3、Provisioning API 0.4.0、ドキュメント一覧 r69 |
+| aka | `c2a093d0c336be039cd00f74631be5f1de4d4300` | Go 1.27.3、認証ベクターAPI 0.2.0-draft、管理API 0.2.0 |
+| provisioner | `0ca238deb1181e2b9a85b514d9f3894ef93ba85c` | Go 1.27.3、provisioner API 0.3.0 |
+| OSS/BSS | `d970d487217721f580fa62f4a7b68ba791231c49` | Go 1.27.3、PostgreSQL 18.6、cloudflared 2026.10.3 |
+| eapaka_test（試験用。タグは付けない） | `b3f8f25ce892151372e348a13d49ab6a13ae83a6` | `golang:1.27.3` のコンテナでビルド |
+
+上の表は `pocset-v1.0.1` の組み合わせ。前のタグの組み合わせは、そのタグの `versions.env` と GitHub のリリースにある（`pocset-v1.0.0` は本PoC `baa13f3`・aka `c17c24b`・provisioner `a6435ae`・OSS/BSS `b5689c1`、Go 1.27.2）。
 
 ## 8. タグの付け方
 
@@ -363,3 +365,42 @@ simwifi での確認（2026-10-16。組み合わせは本PoC `baa13f3`・aka `c1
 - Ubuntu 26 への移行: 10-19 の実行は、まだ Ubuntu 24.04（イメージ 20261012.334.1）だった。移行を待たずにタグを付ける（確認事項 11。タグはソースを固定し、利用者のビルドはイメージの版で決まる。移行の後に CI が壊れたら CI を直す新しいコミットで対応し、タグは付け替えない）。先取りの確認として、一時ブランチ（`try/ubuntu-26.04`。確かめた後に削除）で E2E の `runs-on` を `ubuntu-26.04`（イメージ 20261012.163.1）にして動かし、試験（5 分 40 秒）と check-pins が成功した。
 - Go の最新のパッチ版は 1.27.2 のまま（go.dev の一覧）。
 - §6 の基準: 4 つの CI と govulncheck は §9.7 のコミットで成功、govulncheck は 10-19 の実行でも指摘なし。E2E と check-pins は `6f2c6fd` と 10-19 の手動の実行で成功。simwifi の 3 つの確認は §9.7。文書は T-01・T-02・T-04 を実装と照合し、記録だけにしたもの（§9.7）は実装との食い違いではない。CHANGELOG を書いた。
+
+### 9.8 pocset-v1.0.1: Go 1.27.3（2026-10-23〜10-24）
+
+きっかけ: 認証局 eMudhra の中間 CA 8 件（P-384）の秘密鍵が、推測できる弱い鍵（値が 256 未満の整数）だったと分かった（2026-10-17 の報告。鍵の生成の儀式のスクリプトの不具合で、弱い鍵の組が使われた）。ブラウザのルートプログラムは中間 CA を止め、emSign ECC Root CA - G3 の信頼を取り消した（NSS 3.131.1）。Go は 1.27.3・1.26.10（2026-10-19〜20）で、`crypto/x509` の `Certificate.Verify` がこの 8 件を含むチェーンを拒むようにした（CVE-2026-111943、GO-2026-6809）。Go 1.27.2 のままだと govulncheck が 4 つとも指摘する（手元で `GOTOOLCHAIN=go1.27.2` で確認）。そのままでは 10-26 の定期の実行と次の push の CI が失敗していた。
+
+影響の調査:
+
+- PoC セットの mTLS は、すべて自己署名の証明書と自前のルート（`x509.NewCertPool()`）で行うので、eMudhra の鍵は通らない。OS のルートを使うのは OSS/BSS のサンプルが Cloudflare Access の公開鍵を取りに行く通信だけで、Cloudflare は eMudhra を使っていない。実害はない。
+- ランタイムのイメージ: 本PoC の `debian:12.15-slim` に apt で入れる ca-certificates は、今は 20250419~deb12u2（DSA-6572-1）で G3 を含まない。aka・provisioner・OSS/BSS の `distroless/static-debian13:nonroot` も、今の版は G3 を除いてある（手元にあった古い版には G3 があった）。導入済みの環境は `--pull --no-cache` で作り直す（CHANGELOG）。
+- cloudflared 2026.9.3 は Go 1.26.8 でビルドされていて GO-2026-6809 の対象。2026.10.3（10-21）は Go 1.27.3 で、compose で使う引数（`--no-autoupdate`、`--token-file`）と UID 65532 は同じ。
+- golangci-lint v2.14.0（Go 1.27.1 でビルド）は、go.mod が 1.27.3 でも動く（本PoC の lint は 0 issues）。valkey・postgres・fluent-bit は Go で書かれておらず、対象外。
+
+確認事項（2026-10-23。すべて推奨案で合意）:
+
+| # | 事項 | 決定 |
+|---|---|---|
+| 1 | 版 | `pocset-v1.0.1`（`pocset-v1.0.0` は付け替えない。§8） |
+| 2 | simwifi の範囲 | `scripts/e2e.sh` だけ。本PoC の T-03 の 23 件と Cloudflare を通した画面は省く（変わったのはツールチェーンとイメージの版だけで、API と機能は変えていないため） |
+| 3 | cloudflared | 2026.10.3 に上げる |
+| 4 | 時期 | 10-26 の定期の実行の前に 4 つを push する |
+| 5 | RadSec エッジの構想への参考 | 独立した CA を作るときは、鍵を作った後にその鍵の強さ（大きさなど）を確かめる手順を設計に入れる（今回は直さない） |
+
+作業:
+
+| リポジトリ | コミット | 内容 | CI |
+|---|---|---|---|
+| aka | `c2a093d` | Go 1.27.3（go.mod、Dockerfile、README、設計概要） | CI と govulncheck が成功 |
+| 本PoC | develop `86e05a9`（#63）、main `1f8aad1`（#64） | Go 1.27.3（go.work、7 つの go.mod、5 つの Dockerfile `golang:1.27.3-bookworm`、README）。文書 B-03 r5・D-09 r25・D-10 r18・D-11 r16・D-12 r12・E-01 r12・E-03 r18・T-01 r7・T-02 r28・ドキュメント一覧 r69 | PR・main とも CI と govulncheck が成功（手元でも build・vet・test-race・lint・vulncheck） |
+| provisioner | `0ca238d` | Go 1.27.3、`POC_REF` を `1f8aad1`・`AKA_REF` を `c2a093d` に | CI（契約テストはスキップなし）と govulncheck が成功 |
+| OSS/BSS | `d970d48` | Go 1.27.3、cloudflared 2026.10.3、`PROVISIONER_REF` を `0ca238d`・`POC_REF` を `1f8aad1`・`AKA_REF` を `c2a093d` に | CI（契約テストを含む）と govulncheck が成功 |
+| このリポジトリ | `4234ed4` | `versions.env`、`scripts/e2e.sh` の `golang:1.27.3`、CHANGELOG の v1.0.1 の節 | E2E（試験と check-pins）が成功 |
+
+simwifi での確認（2026-10-24。組み合わせは §7 の表）: `scripts/e2e.sh` がすべて成功した（§9.5 の試験の中身 1〜9。起動ログの build は `1f8aad1`）。ビルドしたイメージ（本PoC の auth-server、aka、provisioner、OSS/BSS）の CA の束は 148 件で、emSign ECC Root CA - G3 を含まない（C1・C3・G1 だけ）。終わった後に片付けた（`~/aka-work/ossbss-dev/tunnel-token` だけが残る）。
+
+タグの前の確認（2026-10-24）:
+
+- Go の最新のパッチ版は 1.27.3（go.dev の一覧）。
+- §6 の基準: 4 つの CI と govulncheck は上の表のコミットで成功。E2E と check-pins は `4234ed4` で成功。simwifi の確認は上のとおり。文書は Go の版を書いた箇所を改版し、CHANGELOG に v1.0.1 の節を書いた。
+- 気づいて直したもの: このリポジトリの README の「状態」の行が、最初のタグの前のまま（「準備中」）だった。この計画書の冒頭の状態の行も、ステップ 5 のときのままだった。どちらも直した（このコミット）。
