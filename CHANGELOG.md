@@ -2,6 +2,35 @@
 
 PoC セットのタグごとに、各リポジトリで変わったことを書く。組み合わせ（各リポジトリのコミット）は、そのタグの `versions.env` にある。計画と経緯は `docs/plan.md`。
 
+## pocset-v1.0.2（未リリース）
+
+Go の `net/http` のセキュリティ修正を取り込むための版。4 つのソフトウェアの API と機能は変えていない。
+
+### 4 つに共通
+
+- Go を 1.27.4 に上げた（go.mod、Dockerfile、CI）。Go 1.27.4 は `net/http` の CVE-2026-97054（[GO-2026-6859](https://pkg.go.dev/vuln/GO-2026-6859)）を直す。HTTP/1 のサーバーで `MaxBytesReader` の上限を超えたときの `Connection: close` の設定がハンドラーのヘッダーの設定と競合し、パニックで落ちることがある。Go 1.27.3 のままだと govulncheck が指摘する（2026-11-16 の定期の実行で 4 つとも失敗した）。
+
+### PoC セット（eapaka-pocset）
+
+- `versions.env` を 4 つの新しいコミットに更新した。`scripts/e2e.sh` が eapaka_test をビルドするイメージを `golang:1.27.4` にした。
+
+### 本PoC（eapaka-radius-server-poc）
+
+- 文書: Go の版を書いた文書を改版した（ドキュメント一覧 r70）。
+
+### eapaka-node-provisioner
+
+- CI の契約テストの相手（`POC_REF` / `AKA_REF`）を Go 1.27.4 のコミットにした。
+
+### eapaka-ossbss-sample
+
+- cloudflared を 2026.10.3 から 2026.11.0 にした（2026.10.3 は Go 1.27.3 でビルドされていて GO-2026-6859 の対象。2026.11.0 は Go 1.27.4）。2026.10.6 からイメージのエントリポイントに `--no-autoupdate` が付かなくなったが、compose の `command` で渡しているので影響はない。
+- CI の契約テストの相手（`PROVISIONER_REF` / `POC_REF` / `AKA_REF`）を新しいコミットにした。
+
+### 導入済みの環境の更新
+
+- 4 つとも、新しいタグを取得してイメージをビルドし直す（`docker compose build --pull --no-cache`）。
+
 ## pocset-v1.0.1（2026-10-24）
 
 Go の `crypto/x509` のセキュリティ修正を取り込むための版。4 つのソフトウェアの API と機能は変えていない。
